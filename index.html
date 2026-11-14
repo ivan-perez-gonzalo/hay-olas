@@ -24,7 +24,8 @@
   table { border-collapse:collapse; font-size:.85rem; white-space:nowrap; }
   th, td { padding:4px 6px; text-align:center; border-bottom:1px solid #eee; }
   th:first-child, td:first-child { text-align:left; position:sticky; left:0; background:var(--card); color:var(--mut); font-weight:normal; }
-  tr.model td { color:var(--mut); font-size:.78rem; }
+  td.wave { vertical-align:bottom; height:64px; padding-bottom:0; }
+  td.kj { background:#1a202c; color:#fff; font-weight:bold; }
   td.day { border-left:2px solid #cbd5e0; }
   .arr { display:inline-block; }
   .warn { color:var(--no); font-weight:bold; }
@@ -136,6 +137,24 @@ function recommend(s) {
 
 // Energía como la de surf-forecast: ρ·g²·H²·T²/(16π) = 1.962·H²·T² kJ (cuadra con sus números: 0.8 m, 6 s → 45 kJ).
 const energy = (h, t) => h == null || t == null ? null : 1.962 * h * h * t * t;
+const kjColor = e => e < 20 ? '#90cdf4' : e < 50 ? '#4299e1' : e < 100 ? '#805ad5' : e < 200 ? '#d53f8c' : '#c53030';
+// Ola dibujada: más grande y más "caliente" cuanta más energía.
+function waveIcon(e) {
+  if (e == null) return '';
+  const w = Math.min(60, 10 + Math.sqrt(e) * 3.5);
+  return `<svg viewBox="0 0 40 30" width="${w}" height="${w * 0.75}" aria-hidden="true"><path fill="${kjColor(e)}"
+    d="M0 30C6 30 8 12 18 8C26 5 32 9 34 14C29 11 24 13 24 19C24 25 30 28 40 30Z"/></svg>`;
+}
+
+// Recomendación con todas las playas a esa hora (la primera, Sitges, da la dirección del mar).
+// Si en ninguna el veredicto pasa de NO, no hay nada.
+const RANK = { no: 0, regular: 1, si: 2 };
+function where(slotsAtTime) {
+  const best = slotsAtTime.reduce((a, s) => RANK[s.verdict.v] > RANK[a] ? s.verdict.v : a, 'no');
+  const rec = recommend(slotsAtTime[0]);
+  if (best === 'no' || !rec.spots.length) return { text: 'No hay nada', spots: [], v: 'no' };
+  return { ...rec, v: best };
+}
 
 const LABEL = { si: 'SÍ', regular: 'REGULAR', no: 'NO' };
 const DAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -198,26 +217,30 @@ function upcoming(slots) {
   });
 }
 
-function renderWhere(slots) {
-  const rec = recommend(nowSlot(slots));
+// allSlots: las franjas de cada playa; la primera (Sitges) marca las horas.
+function renderWhere(allSlots) {
+  const byTime = allSlots.map(sl => Object.fromEntries(sl.map(s => [s.time, s])));
+  const at = s => byTime.map(m => m[s.time]).filter(Boolean);
+  const rec = where(at(nowSlot(allSlots[0])));
   // Junta franjas seguidas con la misma recomendación.
   const groups = [];
-  for (const s of upcoming(slots)) {
-    const r = recommend(s), last = groups.at(-1);
-    if (last && last.r.text === r.text && last.r.spots.join() === r.spots.join()) { last.to = s; last.hs.push(s.h); }
+  for (const s of upcoming(allSlots[0])) {
+    const r = where(at(s)), last = groups.at(-1);
+    if (last && last.r.text === r.text && last.r.v === r.v && last.r.spots.join() === r.spots.join()) { last.to = s; last.hs.push(s.h); }
     else groups.push({ r, from: s, to: s, hs: [s.h] });
   }
   return `
   <section>
     <h2>¿Dónde voy?</h2>
-    <div class="now ${rec.spots.length ? 'si' : 'no'}">
-      <b>${rec.spots.length ? rec.spots.join(' · ') : '—'}</b>
-      <div>Ahora: ${rec.text}</div>
+    <div class="now ${rec.v}">
+      <b>${rec.spots.length ? rec.spots.join(' · ') : 'No hay nada'}</b>
+      <div>Ahora${rec.spots.length ? `: mar del ${rec.text} · ${LABEL[rec.v]}` : ''}</div>
     </div>
     <div class="scroll"><table>
       ${groups.map(g => `<tr><td>${slotLabel(g.from)}${g.to !== g.from ? ' → ' + slotLabel(g.to) : ''}</td>
-        <td>${g.r.text}</td><td>${fmt(Math.min(...g.hs))}–${fmt(Math.max(...g.hs))} m</td>
-        <td style="text-align:left"><b>${g.r.spots.join(', ') || '—'}</b></td></tr>`).join('')}
+        <td class="${g.r.v}">${g.r.spots.length ? LABEL[g.r.v] : 'NO'}</td>
+        <td>${g.r.spots.length ? g.r.text : ''}</td><td>${[...new Set([Math.min(...g.hs), Math.max(...g.hs)].map(x => fmt(x)))].join('–')} m</td>
+        <td style="text-align:left"><b>${g.r.spots.join(', ') || 'No hay nada'}</b></td></tr>`).join('')}
     </table></div>
   </section>`;
 }
@@ -242,7 +265,7 @@ function renderSpot(spot, slots) {
     </div>
     <div class="frame"><iframe src="${spot.cam}" title="Webcam ${spot.name}" allow="autoplay; fullscreen"></iframe></div>
 
-    <h3>Previsión (3 modelos: si coinciden, te puedes fiar)</h3>
+    <h3>Previsión <small>(⚠ = los modelos no coinciden, menos fiable)</small></h3>
     <div class="scroll"><table>
       <tr><th></th>${cols.map((s, i) => {
         const d = new Date(s.time);
@@ -250,9 +273,9 @@ function renderSpot(spot, slots) {
       }).join('')}</tr>
       ${row('Veredicto', s => [LABEL[s.verdict.v], s.verdict.v])}
       ${row('Ola (m)', s => `<b>${fmt(s.h)}</b>${s.spread > CFG.maxSpread ? ' <span class="warn" title="Los modelos no coinciden">⚠</span>' : ''}`)}
-      ${Object.values(MODELS).map(l => row('&nbsp;&nbsp;' + l, s => fmt(s.hs[l]), 'model')).join('')}
       ${row('Periodo (s)', s => fmt(s.t))}
-      ${row('Energía (kJ)', s => fmt(s.energy, 0))}
+      ${row('', s => [waveIcon(s.energy), 'wave'])}
+      ${row('Energía (kJ)', s => [fmt(s.energy, 0), 'kj'])}
       ${row('Dir. ola', s => arrow(s.wdir))}
       ${row('Viento km/h', s => `${fmt(s.wind, 0)} <small>(${fmt(s.gust, 0)})</small>`)}
       ${row('Dir. viento', s => `${arrow(s.windDir)}<br><small>${windType(s.windDir, spot.facing)}</small>`)}
@@ -268,7 +291,8 @@ async function main() {
   const box = document.getElementById('spots');
   const results = await Promise.allSettled(SPOTS.map(loadSpot));
   // La recomendación usa el mar de Sitges (primer spot).
-  box.innerHTML = (results[0].status === 'fulfilled' ? renderWhere(results[0].value) : '') + results.map((r, i) => r.status === 'fulfilled'
+  const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+  box.innerHTML = (results[0].status === 'fulfilled' ? renderWhere(ok) : '') + results.map((r, i) => r.status === 'fulfilled'
     ? renderSpot(SPOTS[i], r.value)
     : `<section><h2>${SPOTS[i].name}</h2><p class="warn">No se pudo cargar la previsión: ${r.reason.message}</p></section>`).join('');
   document.getElementById('updated').textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
@@ -313,6 +337,11 @@ console.assert(recommend({ h: 2, wdir: 100 }).spots.length === 5, 'este todas');
 console.assert(recommend({ h: 0.8, wdir: 315 }).spots.length === 0, 'tierra');
 console.assert(recommend({ h: 0.2, wdir: 200 }).text === 'Poca ola', 'poca');
 console.assert(Math.round(energy(0.8, 6)) === 45, 'energía surf-forecast');
+const sl = (v, h = 0.8, wdir = 200) => ({ h, wdir, verdict: { v } });
+console.assert(where([sl('no'), sl('no')]).text === 'No hay nada', 'nada en ningún lado');
+console.assert(where([sl('no'), sl('regular')]).v === 'regular', 'vale con una playa');
+console.assert(where([sl('si'), sl('no')]).spots.join() === 'Sitges playa,Port Ginesta', 'sur bueno');
+console.assert(where([sl('si', 0.8, 315)]).text === 'No hay nada', 'mar de tierra');
 
 aemet();
 main();
