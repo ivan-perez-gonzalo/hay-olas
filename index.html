@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¿Hay olas? · Sitges y El Prat</title>
+<style>
+  :root { --si:#1f9d55; --reg:#d69e2e; --no:#c53030; --bg:#f4f6f8; --card:#fff; --mut:#667; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui, sans-serif; background:var(--bg); color:#1a202c; }
+  header { padding:16px; text-align:center; }
+  header h1 { margin:0; font-size:1.6rem; }
+  header p { margin:4px 0 0; color:var(--mut); font-size:.85rem; }
+  main { max-width:1150px; margin:0 auto; padding:0 12px 24px; }
+  section { background:var(--card); border-radius:12px; padding:16px; margin-bottom:16px; box-shadow:0 1px 3px #0001; }
+  h2 { margin:0 0 12px; }
+  h3 { margin:16px 0 8px; font-size:1rem; color:var(--mut); }
+  .now { display:flex; align-items:center; gap:12px; padding:12px; border-radius:10px; color:#fff; margin-bottom:12px; }
+  .now b { font-size:1.8rem; }
+  .si { background:var(--si); color:#fff; } .regular { background:var(--reg); color:#fff; } .no { background:var(--no); color:#fff; }
+  .frame { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
+  .frame iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .scroll { overflow-x:auto; }
+  table { border-collapse:collapse; font-size:.85rem; white-space:nowrap; }
+  th, td { padding:4px 6px; text-align:center; border-bottom:1px solid #eee; }
+  th:first-child, td:first-child { text-align:left; position:sticky; left:0; background:var(--card); color:var(--mut); font-weight:normal; }
+  tr.model td { color:var(--mut); font-size:.78rem; }
+  td.day { border-left:2px solid #cbd5e0; }
+  .arr { display:inline-block; }
+  .warn { color:var(--no); font-weight:bold; }
+  .wisuki { width:100%; height:390px; border:0; }
+  .aemet img { max-width:100%; display:block; margin:0 auto; }
+  .aemet input { width:100%; }
+  .aemet p { text-align:center; margin:4px 0; font-weight:bold; }
+  .puertos { width:100%; height:650px; border:0; }
+  footer { text-align:center; color:var(--mut); font-size:.75rem; padding-bottom:24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌊 ¿Hay olas?</h1>
+  <p id="updated">Cargando previsión…</p>
+</header>
+<main>
+  <div id="spots"></div>
+
+  <section class="aemet">
+    <h2>AEMET · Mar combinada, Costa de Cataluña</h2>
+    <img id="aemet-img" alt="Mapa de AEMET de altura de mar combinada en la costa de Cataluña">
+    <p id="aemet-label"></p>
+    <input id="aemet-slider" type="range" min="0" max="38" step="1" aria-label="Hora del mapa de AEMET">
+  </section>
+
+  <section>
+    <h2>Puertos del Estado · Predicción de oleaje</h2>
+    <iframe class="puertos" loading="lazy" title="Predicción de oleaje de Puertos del Estado"
+      src="https://portus.puertos.es/#/predictionWidget?resourceId=oleaje-med&var=WAVE&zoom=9&lat=41.25&lon=1.95&vec=true&locale=es"></iframe>
+  </section>
+</main>
+<footer>
+  Datos: <a href="https://open-meteo.com/">Open-Meteo</a> (modelos GFS-Wave, ECMWF WAM, Météo-France),
+  AEMET, Wisuki, Puertos del Estado. Cámaras: Escola Catalana de Surf · Ajuntament del Prat.
+</footer>
+
+<script>
+// Umbrales del veredicto: cámbialos a tu gusto.
+const CFG = {
+  minH: 0.4,       // m: por debajo, no hay ola
+  goodH: 0.6,      // m: a partir de aquí, buena
+  minT: 5,         // s: por debajo, periodo demasiado corto
+  goodT: 6,        // s: a partir de aquí, bueno
+  calmWind: 10,    // km/h: por debajo, el viento da igual
+  maxOnshore: 20,  // km/h: viento de mar más fuerte que esto = no
+  maxSpread: 0.3,  // m: si los modelos difieren más, se marca ⚠
+  hours: [7, 10, 13, 16, 19],
+  days: 4,
+};
+
+const MODELS = { ncep_gfswave025: 'GFS', ecmwf_wam025: 'ECMWF', meteofrance_wave: 'M-France' };
+
+// facing = hacia dónde mira la playa (grados). sea = punto de mar para el oleaje, land = playa para el viento.
+const SPOTS = [
+  { name: 'Sitges', facing: 160, sea: [41.23, 1.81], land: [41.235, 1.81], wisuki: 2743,
+    cam: 'https://www.ipcamlive.com/player/player.php?alias=65d33d2760353&autoplay=1&token=rJjnDBVreI2kFLL1TkWL%2Fwaq5emYvM%2FBQnEbhIStbuo%3D' },
+  { name: 'El Prat', facing: 150, sea: [41.28, 2.12], land: [41.288, 2.106], wisuki: 5984,
+    cam: 'https://www.streamingbarcelona.com/plataforma/ajuntament-elprat/embed/' },
+];
+
+const angDiff = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+const median = arr => {
+  const a = arr.filter(x => x != null).sort((x, y) => x - y);
+  if (!a.length) return null;
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+};
+const cardinal = d => ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d / 22.5) % 16];
+// La flecha apunta hacia donde va (dirección "desde" + 180).
+const arrow = d => d == null ? '–' : `<span class="arr" style="transform:rotate(${d}deg)">↓</span> ${cardinal(d)}`;
+const fmt = (x, n = 1) => x == null ? '–' : x.toFixed(n);
+
+function windType(windDir, facing) {
+  const d = angDiff(windDir, facing + 180);
+  return d <= 45 ? 'offshore' : d <= 80 ? 'cross-off' : d <= 100 ? 'cross' : 'onshore';
+}
+
+function verdict(s, facing) {
+  if (s.h == null || s.t == null) return { v: 'no', why: 'sin datos' };
+  const wt = windType(s.windDir, facing);
+  if (s.wdir != null && angDiff(s.wdir, facing) > 90) return { v: 'no', why: 'la ola no entra (viene de tierra)' };
+  if (s.h < CFG.minH) return { v: 'no', why: 'poca ola' };
+  if (s.t < CFG.minT) return { v: 'no', why: 'periodo muy corto' };
+  if (wt === 'onshore' && s.wind > CFG.maxOnshore) return { v: 'no', why: 'viento de mar fuerte' };
+  const goodWind = s.wind < CFG.calmWind || wt === 'offshore' || wt === 'cross-off';
+  if (s.h >= CFG.goodH && s.t >= CFG.goodT && goodWind) return { v: 'si', why: 'buenas condiciones' };
+  const why = [s.h < CFG.goodH && 'ola justa', s.t < CFG.goodT && 'periodo corto', !goodWind && `viento ${wt}`].filter(Boolean);
+  return { v: 'regular', why: why.join(', ') };
+}
+
+const LABEL = { si: 'SÍ', regular: 'REGULAR', no: 'NO' };
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.json();
+}
+
+async function loadSpot(spot) {
+  const [lat, lon] = spot.sea, [wlat, wlon] = spot.land;
+  const vars = 'wave_height,wave_period,wave_direction';
+  const [marine, wind] = await Promise.all([
+    getJSON(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=${vars}&models=${Object.keys(MODELS)}&timezone=Europe%2FMadrid&forecast_days=${CFG.days}`),
+    getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${wlat}&longitude=${wlon}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kmh&timezone=Europe%2FMadrid&forecast_days=${CFG.days}`),
+  ]);
+  const wi = Object.fromEntries(wind.hourly.time.map((t, i) => [t, i]));
+  const m = marine.hourly;
+  return m.time.map((time, i) => {
+    const hs = {}, ts = [], ds = [];
+    for (const [k, label] of Object.entries(MODELS)) {
+      hs[label] = m[`wave_height_${k}`][i];
+      ts.push(m[`wave_period_${k}`][i]);
+      ds.push(m[`wave_direction_${k}`][i]);
+    }
+    const hv = Object.values(hs).filter(x => x != null);
+    const j = wi[time];
+    const s = {
+      time, hs,
+      h: median(hv),
+      spread: hv.length > 1 ? Math.max(...hv) - Math.min(...hv) : 0,
+      t: median(ts),
+      wdir: ds.find(d => d != null) ?? null, // dirección del primer modelo con dato (GFS)
+      wind: wind.hourly.wind_speed_10m[j],
+      gust: wind.hourly.wind_gusts_10m[j],
+      windDir: wind.hourly.wind_direction_10m[j],
+    };
+    s.verdict = verdict(s, spot.facing);
+    return s;
+  });
+}
+
+function localKey(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`;
+}
+
+function renderSpot(spot, slots) {
+  const nowKey = localKey(new Date());
+  const now = slots.find(s => s.time === nowKey) ?? slots[0];
+  const today = nowKey.slice(0, 10);
+  // Horas fijas del día; hoy solo desde hace ~2 h en adelante.
+  const cols = slots.filter(s => {
+    const h = +s.time.slice(11, 13), day = s.time.slice(0, 10);
+    return CFG.hours.includes(h) && (day > today || (day === today && h >= new Date().getHours() - 2));
+  });
+  const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  const isDayStart = (s, i) => i === 0 || s.time.slice(0, 10) !== cols[i - 1].time.slice(0, 10);
+  const row = (label, f, cls = '') => `<tr class="${cls}"><td>${label}</td>${cols.map((s, i) => {
+    const [content, c = ''] = [].concat(f(s));
+    return `<td class="${c} ${isDayStart(s, i) ? 'day' : ''}">${content}</td>`;
+  }).join('')}</tr>`;
+
+  const wt = windType(now.windDir, spot.facing);
+  return `
+  <section>
+    <h2>${spot.name}</h2>
+    <div class="now ${now.verdict.v}">
+      <b>${LABEL[now.verdict.v]}</b>
+      <div>Ahora: ${fmt(now.h)} m · ${fmt(now.t)} s · ${cardinal(now.wdir ?? 0)} — viento ${fmt(now.wind, 0)} km/h ${wt}<br>
+      <small>${now.verdict.why}${now.spread > CFG.maxSpread ? ' · ⚠ los modelos no coinciden' : ''}</small></div>
+    </div>
+    <div class="frame"><iframe src="${spot.cam}" title="Webcam ${spot.name}" allow="autoplay; fullscreen"></iframe></div>
+
+    <h3>Previsión (3 modelos: si coinciden, te puedes fiar)</h3>
+    <div class="scroll"><table>
+      <tr><th></th>${cols.map((s, i) => {
+        const d = new Date(s.time);
+        return `<th class="${isDayStart(s, i) ? 'day' : ''}">${isDayStart(s, i) ? days[d.getDay()] + ' ' + d.getDate() + '<br>' : '<br>'}${s.time.slice(11, 13)}h</th>`;
+      }).join('')}</tr>
+      ${row('Veredicto', s => [LABEL[s.verdict.v], s.verdict.v])}
+      ${row('Ola (m)', s => `<b>${fmt(s.h)}</b>${s.spread > CFG.maxSpread ? ' <span class="warn" title="Los modelos no coinciden">⚠</span>' : ''}`)}
+      ${Object.values(MODELS).map(l => row('&nbsp;&nbsp;' + l, s => fmt(s.hs[l]), 'model')).join('')}
+      ${row('Periodo (s)', s => fmt(s.t))}
+      ${row('Dir. ola', s => arrow(s.wdir))}
+      ${row('Viento km/h', s => `${fmt(s.wind, 0)} <small>(${fmt(s.gust, 0)})</small>`)}
+      ${row('Dir. viento', s => `${arrow(s.windDir)}<br><small>${windType(s.windDir, spot.facing)}</small>`)}
+    </table></div>
+
+    <h3>Wisuki</h3>
+    <iframe class="wisuki" loading="lazy" title="Previsión Wisuki ${spot.name}"
+      src="https://wisuki.com/widget-details?spot=${spot.wisuki}&lang=es&spotinfo=0&disablenighttime=1"></iframe>
+  </section>`;
+}
+
+async function main() {
+  const box = document.getElementById('spots');
+  const results = await Promise.allSettled(SPOTS.map(loadSpot));
+  box.innerHTML = results.map((r, i) => r.status === 'fulfilled'
+    ? renderSpot(SPOTS[i], r.value)
+    : `<section><h2>${SPOTS[i].name}</h2><p class="warn">No se pudo cargar la previsión: ${r.reason.message}</p></section>`).join('');
+  document.getElementById('updated').textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+}
+
+// AEMET publica una pasada al día (00 UTC), un mapa cada 3 h de +6 a +120 h.
+function aemet() {
+  const img = document.getElementById('aemet-img'), slider = document.getElementById('aemet-slider'), label = document.getElementById('aemet-label');
+  const run = new Date(); run.setUTCHours(0, 0, 0, 0);
+  let fellBack = false;
+  const ymd = d => d.toISOString().slice(0, 10).replaceAll('-', '');
+  const step = i => 6 + 3 * i;
+  const closest = () => Math.max(0, Math.min(38, Math.round(((Date.now() - run) / 3600e3 - 6) / 3)));
+  const show = i => {
+    slider.value = i;
+    img.src = `https://www.aemet.es/imagenes_d/eltiempo/prediccion/mod_maritima/${ymd(run)}00+${String(step(i)).padStart(3, '0')}_aewam_cat_martot.png`;
+    label.textContent = new Date(+run + step(i) * 3600e3).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  // Si la pasada de hoy aún no está publicada, usa la de ayer.
+  img.onerror = () => {
+    if (fellBack) { label.textContent = 'Mapa no disponible'; return; }
+    fellBack = true; run.setUTCDate(run.getUTCDate() - 1); show(closest());
+  };
+  slider.oninput = () => show(+slider.value);
+  show(closest());
+}
+
+// Autocomprobación de la lógica del veredicto (mira la consola si algo falla).
+console.assert(windType(340, 160) === 'offshore', 'offshore');
+console.assert(windType(160, 160) === 'onshore', 'onshore');
+console.assert(windType(270, 160) === 'cross-off' || windType(270, 160) === 'cross', 'cross');
+console.assert(median([0.6, null, 0.8, 0.7]) === 0.7, 'median');
+console.assert(verdict({ h: 0.8, t: 7, wdir: 190, wind: 5, windDir: 160 }, 160).v === 'si', 'si');
+console.assert(verdict({ h: 0.8, t: 7, wdir: 340, wind: 5, windDir: 160 }, 160).v === 'no', 'ola de tierra');
+console.assert(verdict({ h: 0.8, t: 7, wdir: 190, wind: 25, windDir: 160 }, 160).v === 'no', 'onshore fuerte');
+console.assert(verdict({ h: 0.5, t: 6, wdir: 190, wind: 5, windDir: 160 }, 160).v === 'regular', 'regular');
+
+aemet();
+main();
+</script>
+</body>
+</html>
