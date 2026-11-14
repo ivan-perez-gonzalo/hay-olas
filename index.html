@@ -71,7 +71,10 @@
   td.day, th.day { border-left:1px solid #cbd5e1; }
   .list td { text-align:left; padding:10px 12px; }
   .list td:first-child { position:static; background:none; color:var(--ink); }
-  .arr { display:inline-block; color:var(--accent); }
+  .dir { display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--mut); font-weight:600; }
+  .dir svg { fill:var(--ink); flex:none; }
+  .wbox { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:8px; background:#eef2f7; }
+  .tile .dir { font-size:1.1rem; color:var(--ink); }
   .warn { color:var(--no); font-weight:700; }
   .wisuki { width:100%; height:480px; border:0; border-radius:12px; }
   .aemet img { max-width:100%; display:block; margin:0 auto; border-radius:8px; }
@@ -161,8 +164,10 @@ const median = arr => {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 };
 const cardinal = d => ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d / 22.5) % 16];
-// La flecha apunta hacia donde va (dirección "desde" + 180).
-const arrow = d => d == null ? '–' : `<span class="arr" style="transform:rotate(${d}deg)">↓</span> ${cardinal(d)}`;
+// Iconos estilo Surfline: apuntan hacia donde va (dirección "desde" + 180, el SVG ya apunta abajo).
+const svgDir = (d, path) => `<svg viewBox="0 0 24 24" width="18" height="18" style="transform:rotate(${d}deg)" aria-hidden="true"><path d="${path}"/></svg>`;
+const swellIcon = d => d == null ? '–' : `<span class="dir">${svgDir(d, 'M12 22 5 3l7 5 7-5z')}${cardinal(d)}</span>`;
+const windIcon = d => d == null ? '–' : `<span class="dir"><span class="wbox">${svgDir(d, 'M10 2h4v12h5l-7 8-7-8h5z')}</span>${cardinal(d)}</span>`;
 const fmt = (x, n = 1) => x == null ? '–' : x.toFixed(n);
 
 function windType(windDir, facing) {
@@ -326,9 +331,9 @@ function renderSpot(spot, slots) {
       ${tile('Ola', `${fmt(now.h)} m`, now.spread > CFG.maxSpread ? '<span class="warn">⚠ poco fiable</span>' : 'media de 3 modelos')}
       ${tile('Periodo', `${fmt(now.t)} s`)}
       ${tile('Energía', `${fmt(now.energy, 0)} kJ`, waveIcon(now.energy))}
-      ${tile('Mar de', arrow(now.wdir), 'dirección del oleaje')}
+      ${tile('Mar de', swellIcon(now.wdir), 'dirección del oleaje')}
       ${tile('Viento', `${fmt(now.wind, 0)} km/h`, `rachas ${fmt(now.gust, 0)}`)}
-      ${tile('Viento de', arrow(now.windDir), wt)}
+      ${tile('Viento de', windIcon(now.windDir), wt)}
     </div>
     <div class="frame"><iframe src="${spot.cam}" title="Webcam ${spot.name}" allow="autoplay; fullscreen"></iframe></div>
 
@@ -343,9 +348,9 @@ function renderSpot(spot, slots) {
       ${row('Periodo (s)', s => fmt(s.t))}
       ${row('', s => [waveIcon(s.energy), 'wave'])}
       ${row('Energía (kJ)', s => [fmt(s.energy, 0), 'kj'])}
-      ${row('Dir. ola', s => arrow(s.wdir))}
+      ${row('Dir. ola', s => swellIcon(s.wdir))}
       ${row('Viento km/h', s => `${fmt(s.wind, 0)} <small>(${fmt(s.gust, 0)})</small>`)}
-      ${row('Dir. viento', s => `${arrow(s.windDir)}<br><small>${windType(s.windDir, spot.facing)}</small>`)}
+      ${row('Dir. viento', s => `${windIcon(s.windDir)}<br><small>${windType(s.windDir, spot.facing)}</small>`)}
     </table></div>
 
     <h3>Wisuki</h3>
