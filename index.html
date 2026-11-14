@@ -72,8 +72,16 @@ const CFG = {
   calmWind: 10,    // km/h: por debajo, el viento da igual
   maxOnshore: 20,  // km/h: viento de mar más fuerte que esto = no
   maxSpread: 0.3,  // m: si los modelos difieren más, se marca ⚠
+  bigH: 1.5,       // m: a partir de aquí, "muy grande"
   hours: [7, 10, 13, 16, 19],
   days: 4,
+};
+
+// Dónde ir según de dónde viene el mar (dirección de la ola en Sitges). big = spots si está muy grande.
+const ZONES = {
+  'Norte':        { dirs: ['N', 'NNE', 'NE', 'ENE'], spots: ['El Prat', 'Sitges playa'], big: ['Balmins'] },
+  'Este (recto)': { dirs: ['E', 'ESE', 'SE'], spots: ['Sitges playa', 'Port Ginesta', 'El Prat', 'Aiguadolç', 'Balmins'] },
+  'Sur':          { dirs: ['SSE', 'S', 'SSW', 'SW', 'WSW'], spots: ['Sitges playa', 'Port Ginesta'], big: ['Aiguadolç'] },
 };
 
 const MODELS = { ncep_gfswave025: 'GFS', ecmwf_wam025: 'ECMWF', meteofrance_wave: 'M-France' };
@@ -116,7 +124,22 @@ function verdict(s, facing) {
   return { v: 'regular', why: why.join(', ') };
 }
 
+function recommend(s) {
+  if (s.h == null || s.wdir == null) return { text: 'Sin datos', spots: [] };
+  if (s.h < CFG.minH) return { text: 'Poca ola', spots: [] };
+  const c = cardinal(s.wdir);
+  const zone = Object.keys(ZONES).find(k => ZONES[k].dirs.includes(c));
+  if (!zone) return { text: `Mar de tierra (${c}), no entra`, spots: [] };
+  const z = ZONES[zone], big = s.h >= CFG.bigH && z.big;
+  return { text: zone + (big ? ', muy grande' : ''), spots: big ? z.big : z.spots };
+}
+
+// Energía como la de surf-forecast: ρ·g²·H²·T²/(16π) = 1.962·H²·T² kJ (cuadra con sus números: 0.8 m, 6 s → 45 kJ).
+const energy = (h, t) => h == null || t == null ? null : 1.962 * h * h * t * t;
+
 const LABEL = { si: 'SÍ', regular: 'REGULAR', no: 'NO' };
+const DAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const slotLabel = s => `${DAYS[new Date(s.time).getDay()]} ${new Date(s.time).getDate()} ${s.time.slice(11, 13)}h`;
 
 async function getJSON(url) {
   const r = await fetch(url);
@@ -152,6 +175,8 @@ async function loadSpot(spot) {
       gust: wind.hourly.wind_gusts_10m[j],
       windDir: wind.hourly.wind_direction_10m[j],
     };
+    // Con el modelo GFS, que es el que usa surf-forecast.
+    s.energy = energy(hs.GFS ?? s.h, m.wave_period_ncep_gfswave025[i] ?? s.t);
     s.verdict = verdict(s, spot.facing);
     return s;
   });
@@ -162,16 +187,44 @@ function localKey(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`;
 }
 
-function renderSpot(spot, slots) {
-  const nowKey = localKey(new Date());
-  const now = slots.find(s => s.time === nowKey) ?? slots[0];
-  const today = nowKey.slice(0, 10);
-  // Horas fijas del día; hoy solo desde hace ~2 h en adelante.
-  const cols = slots.filter(s => {
+const nowSlot = slots => slots.find(s => s.time === localKey(new Date())) ?? slots[0];
+
+// Horas fijas del día; hoy solo desde hace ~2 h en adelante.
+function upcoming(slots) {
+  const today = localKey(new Date()).slice(0, 10);
+  return slots.filter(s => {
     const h = +s.time.slice(11, 13), day = s.time.slice(0, 10);
     return CFG.hours.includes(h) && (day > today || (day === today && h >= new Date().getHours() - 2));
   });
-  const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+}
+
+function renderWhere(slots) {
+  const rec = recommend(nowSlot(slots));
+  // Junta franjas seguidas con la misma recomendación.
+  const groups = [];
+  for (const s of upcoming(slots)) {
+    const r = recommend(s), last = groups.at(-1);
+    if (last && last.r.text === r.text && last.r.spots.join() === r.spots.join()) { last.to = s; last.hs.push(s.h); }
+    else groups.push({ r, from: s, to: s, hs: [s.h] });
+  }
+  return `
+  <section>
+    <h2>¿Dónde voy?</h2>
+    <div class="now ${rec.spots.length ? 'si' : 'no'}">
+      <b>${rec.spots.length ? rec.spots.join(' · ') : '—'}</b>
+      <div>Ahora: ${rec.text}</div>
+    </div>
+    <div class="scroll"><table>
+      ${groups.map(g => `<tr><td>${slotLabel(g.from)}${g.to !== g.from ? ' → ' + slotLabel(g.to) : ''}</td>
+        <td>${g.r.text}</td><td>${fmt(Math.min(...g.hs))}–${fmt(Math.max(...g.hs))} m</td>
+        <td style="text-align:left"><b>${g.r.spots.join(', ') || '—'}</b></td></tr>`).join('')}
+    </table></div>
+  </section>`;
+}
+
+function renderSpot(spot, slots) {
+  const now = nowSlot(slots);
+  const cols = upcoming(slots);
   const isDayStart = (s, i) => i === 0 || s.time.slice(0, 10) !== cols[i - 1].time.slice(0, 10);
   const row = (label, f, cls = '') => `<tr class="${cls}"><td>${label}</td>${cols.map((s, i) => {
     const [content, c = ''] = [].concat(f(s));
@@ -184,7 +237,7 @@ function renderSpot(spot, slots) {
     <h2>${spot.name}</h2>
     <div class="now ${now.verdict.v}">
       <b>${LABEL[now.verdict.v]}</b>
-      <div>Ahora: ${fmt(now.h)} m · ${fmt(now.t)} s · ${cardinal(now.wdir ?? 0)} — viento ${fmt(now.wind, 0)} km/h ${wt}<br>
+      <div>Ahora: ${fmt(now.h)} m · ${fmt(now.t)} s · ${fmt(now.energy, 0)} kJ · ${cardinal(now.wdir ?? 0)} — viento ${fmt(now.wind, 0)} km/h ${wt}<br>
       <small>${now.verdict.why}${now.spread > CFG.maxSpread ? ' · ⚠ los modelos no coinciden' : ''}</small></div>
     </div>
     <div class="frame"><iframe src="${spot.cam}" title="Webcam ${spot.name}" allow="autoplay; fullscreen"></iframe></div>
@@ -193,12 +246,13 @@ function renderSpot(spot, slots) {
     <div class="scroll"><table>
       <tr><th></th>${cols.map((s, i) => {
         const d = new Date(s.time);
-        return `<th class="${isDayStart(s, i) ? 'day' : ''}">${isDayStart(s, i) ? days[d.getDay()] + ' ' + d.getDate() + '<br>' : '<br>'}${s.time.slice(11, 13)}h</th>`;
+        return `<th class="${isDayStart(s, i) ? 'day' : ''}">${isDayStart(s, i) ? DAYS[d.getDay()] + ' ' + d.getDate() + '<br>' : '<br>'}${s.time.slice(11, 13)}h</th>`;
       }).join('')}</tr>
       ${row('Veredicto', s => [LABEL[s.verdict.v], s.verdict.v])}
       ${row('Ola (m)', s => `<b>${fmt(s.h)}</b>${s.spread > CFG.maxSpread ? ' <span class="warn" title="Los modelos no coinciden">⚠</span>' : ''}`)}
       ${Object.values(MODELS).map(l => row('&nbsp;&nbsp;' + l, s => fmt(s.hs[l]), 'model')).join('')}
       ${row('Periodo (s)', s => fmt(s.t))}
+      ${row('Energía (kJ)', s => fmt(s.energy, 0))}
       ${row('Dir. ola', s => arrow(s.wdir))}
       ${row('Viento km/h', s => `${fmt(s.wind, 0)} <small>(${fmt(s.gust, 0)})</small>`)}
       ${row('Dir. viento', s => `${arrow(s.windDir)}<br><small>${windType(s.windDir, spot.facing)}</small>`)}
@@ -213,7 +267,8 @@ function renderSpot(spot, slots) {
 async function main() {
   const box = document.getElementById('spots');
   const results = await Promise.allSettled(SPOTS.map(loadSpot));
-  box.innerHTML = results.map((r, i) => r.status === 'fulfilled'
+  // La recomendación usa el mar de Sitges (primer spot).
+  box.innerHTML = (results[0].status === 'fulfilled' ? renderWhere(results[0].value) : '') + results.map((r, i) => r.status === 'fulfilled'
     ? renderSpot(SPOTS[i], r.value)
     : `<section><h2>${SPOTS[i].name}</h2><p class="warn">No se pudo cargar la previsión: ${r.reason.message}</p></section>`).join('');
   document.getElementById('updated').textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
@@ -250,6 +305,14 @@ console.assert(verdict({ h: 0.8, t: 7, wdir: 190, wind: 5, windDir: 160 }, 160).
 console.assert(verdict({ h: 0.8, t: 7, wdir: 340, wind: 5, windDir: 160 }, 160).v === 'no', 'ola de tierra');
 console.assert(verdict({ h: 0.8, t: 7, wdir: 190, wind: 25, windDir: 160 }, 160).v === 'no', 'onshore fuerte');
 console.assert(verdict({ h: 0.5, t: 6, wdir: 190, wind: 5, windDir: 160 }, 160).v === 'regular', 'regular');
+console.assert(recommend({ h: 0.8, wdir: 200 }).spots.join() === 'Sitges playa,Port Ginesta', 'sur');
+console.assert(recommend({ h: 2, wdir: 200 }).spots.join() === 'Aiguadolç', 'sur grande');
+console.assert(recommend({ h: 0.8, wdir: 45 }).spots.join() === 'El Prat,Sitges playa', 'norte');
+console.assert(recommend({ h: 2, wdir: 45 }).spots.join() === 'Balmins', 'norte grande');
+console.assert(recommend({ h: 2, wdir: 100 }).spots.length === 5, 'este todas');
+console.assert(recommend({ h: 0.8, wdir: 315 }).spots.length === 0, 'tierra');
+console.assert(recommend({ h: 0.2, wdir: 200 }).text === 'Poca ola', 'poca');
+console.assert(Math.round(energy(0.8, 6)) === 45, 'energía surf-forecast');
 
 aemet();
 main();
