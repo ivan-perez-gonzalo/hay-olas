@@ -3,64 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1f33">
 <title>¿Hay olas? · Sitges y El Prat</title>
 <style>
-  :root { --si:#1f9d55; --reg:#d69e2e; --no:#c53030; --bg:#f4f6f8; --card:#fff; --mut:#667; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.4 system-ui, sans-serif; background:var(--bg); color:#1a202c; }
-  header { padding:16px; text-align:center; }
-  header h1 { margin:0; font-size:1.6rem; }
-  header p { margin:4px 0 0; color:var(--mut); font-size:.85rem; }
-  main { max-width:1150px; margin:0 auto; padding:0 12px 24px; }
-  section { background:var(--card); border-radius:12px; padding:16px; margin-bottom:16px; box-shadow:0 1px 3px #0001; }
-  h2 { margin:0 0 12px; }
-  h3 { margin:16px 0 8px; font-size:1rem; color:var(--mut); }
-  .now { display:flex; align-items:center; gap:12px; padding:12px; border-radius:10px; color:#fff; margin-bottom:12px; }
-  .now b { font-size:1.8rem; }
-  .si { background:var(--si); color:#fff; } .regular { background:var(--reg); color:#fff; } .no { background:var(--no); color:#fff; }
-  .frame { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
+  :root {
+    --ink:#0f172a; --mut:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --card:#fff;
+    --navy:#0b1f33; --accent:#0ea5e9;
+    --si:#16a34a; --si-bg:#dcfce7; --si-tx:#166534;
+    --reg:#d97706; --reg-bg:#fef3c7; --reg-tx:#92400e;
+    --no:#dc2626; --no-bg:#fee2e2; --no-tx:#991b1b;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-padding-top:64px; }
+  body { margin:0; font:15px/1.5 -apple-system, "Segoe UI", Inter, Roboto, system-ui, sans-serif; background:var(--bg); color:var(--ink); font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); }
+
+  .top { background:linear-gradient(135deg, var(--navy), #0f3a5f); color:#fff; }
+  .top-in { max-width:1150px; margin:0 auto; padding:22px 16px 18px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .logo { width:42px; height:42px; border-radius:12px; background:#ffffff1a; display:grid; place-items:center; }
+  .top h1 { margin:0; font-size:1.45rem; letter-spacing:-.02em; }
+  .top p { margin:0; color:#cbd5e1; font-size:.85rem; }
+  .updated { margin-left:auto; font-size:.78rem; color:#cbd5e1; background:#ffffff14; border:1px solid #ffffff22; padding:5px 10px; border-radius:999px; }
+  nav { position:sticky; top:0; z-index:10; background:#ffffffd9; backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  nav div { max-width:1150px; margin:0 auto; padding:0 12px; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+  nav a { color:var(--mut); text-decoration:none; font-weight:600; font-size:.88rem; padding:12px 10px; white-space:nowrap; border-bottom:2px solid transparent; }
+  nav a:hover { color:var(--ink); border-bottom-color:var(--accent); }
+
+  main { max-width:1150px; margin:0 auto; padding:20px 12px 8px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:0 1px 2px #0f172a0a, 0 4px 16px #0f172a08; }
+  .eyebrow { font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
+  h2 { margin:2px 0 14px; font-size:1.35rem; letter-spacing:-.01em; }
+  h3 { margin:22px 0 10px; font-size:.8rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--mut); }
+  h3 small { text-transform:none; letter-spacing:0; font-weight:500; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .why { margin:-6px 0 14px; color:var(--mut); font-size:.9rem; }
+  .why::first-letter { text-transform:uppercase; }
+
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.75rem; font-weight:700; letter-spacing:.03em; }
+  .pill.big { font-size:.95rem; padding:6px 16px; }
+  .si { background:var(--si-bg); color:var(--si-tx); } .regular { background:var(--reg-bg); color:var(--reg-tx); } .no { background:var(--no-bg); color:var(--no-tx); }
+
+  .hero { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:18px 20px; border-radius:12px; border-left:5px solid; margin-bottom:16px; }
+  .hero.si { border-color:var(--si); } .hero.regular { border-color:var(--reg); } .hero.no { border-color:var(--no); }
+  .hero-main { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .hero-main b { font-size:1.5rem; letter-spacing:-.01em; }
+  .chip { display:inline-block; background:#fff; color:var(--ink); border:1px solid #0f172a14; border-radius:10px; padding:6px 12px; font-weight:700; font-size:1.05rem; box-shadow:0 1px 2px #0f172a0d; }
+  .chip.sm { font-size:.8rem; padding:2px 8px; border-radius:8px; box-shadow:none; background:var(--bg); }
+  .hero-meta { font-size:.9rem; font-weight:600; }
+
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px; }
+  .tile { border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; }
+  .tile span { font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--mut); }
+  .tile b { font-size:1.35rem; letter-spacing:-.01em; }
+  .tile small { color:var(--mut); font-size:.78rem; min-height:1.1em; }
+
+  .frame { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; }
   .frame iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
-  .scroll { overflow-x:auto; }
-  table { border-collapse:collapse; font-size:.85rem; white-space:nowrap; }
-  th, td { padding:4px 6px; text-align:center; border-bottom:1px solid #eee; }
-  th:first-child, td:first-child { text-align:left; position:sticky; left:0; background:var(--card); color:var(--mut); font-weight:normal; }
-  td.wave { vertical-align:bottom; height:64px; padding-bottom:0; }
-  td.kj { background:#1a202c; color:#fff; font-weight:bold; }
-  td.day { border-left:2px solid #cbd5e0; }
-  .arr { display:inline-block; }
-  .warn { color:var(--no); font-weight:bold; }
-  .wisuki { width:100%; height:390px; border:0; }
-  .aemet img { max-width:100%; display:block; margin:0 auto; }
-  .aemet input { width:100%; }
-  .aemet p { text-align:center; margin:4px 0; font-weight:bold; }
-  .puertos { width:100%; height:650px; border:0; }
-  footer { text-align:center; color:var(--mut); font-size:.75rem; padding-bottom:24px; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+  table { border-collapse:collapse; font-size:.85rem; white-space:nowrap; width:100%; }
+  th, td { padding:6px 8px; text-align:center; border-bottom:1px solid var(--line); }
+  tr:last-child td { border-bottom:0; }
+  th { font-size:.75rem; color:var(--mut); font-weight:600; background:#f8fafc; }
+  th b { color:var(--ink); text-transform:capitalize; }
+  th:first-child, td:first-child { text-align:left; position:sticky; left:0; background:#f8fafc; color:var(--mut); font-weight:600; font-size:.78rem; }
+  td.wave { vertical-align:bottom; height:64px; padding-bottom:0; border-bottom:0; }
+  td.kj { background:var(--navy); color:#fff; font-weight:700; }
+  td.day, th.day { border-left:1px solid #cbd5e1; }
+  .list td { text-align:left; padding:10px 12px; }
+  .list td:first-child { position:static; background:none; color:var(--ink); }
+  .arr { display:inline-block; color:var(--accent); }
+  .warn { color:var(--no); font-weight:700; }
+  .wisuki { width:100%; height:390px; border:0; border-radius:12px; }
+  .aemet img { max-width:100%; display:block; margin:0 auto; border-radius:8px; }
+  .aemet-ctl { display:flex; align-items:center; gap:12px; margin-top:10px; }
+  .aemet-ctl input { flex:1; accent-color:var(--accent); }
+  .aemet-ctl p { margin:0; font-weight:700; min-width:130px; text-align:right; text-transform:capitalize; }
+  footer { max-width:1150px; margin:0 auto; text-align:center; color:var(--mut); font-size:.75rem; padding:0 16px 28px; }
+  @media (max-width:600px) {
+    section { padding:16px; border-radius:14px; } .updated { margin-left:0; } .hero-main b { font-size:1.25rem; }
+    /* En móvil cada franja de "¿Dónde voy?" en varias líneas, para que las playas se vean sin desplazar. */
+    .list, .list tbody, .list td { display:block; }
+    .list tr { display:grid; grid-template-columns:1fr auto; gap:4px 8px; padding:10px 12px; border-bottom:1px solid var(--line); }
+    .list tr:last-child { border-bottom:0; }
+    .list td { padding:0; border:0; white-space:normal; }
+    .list td:nth-child(3), .list td:nth-child(4) { color:var(--mut); font-size:.8rem; }
+    .list td:nth-child(4) { text-align:right; }
+    .list td:nth-child(5) { grid-column:1 / -1; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>🌊 ¿Hay olas?</h1>
-  <p id="updated">Cargando previsión…</p>
+<header class="top">
+  <div class="top-in">
+    <div class="logo"><svg viewBox="0 0 40 30" width="26" height="20" aria-hidden="true"><path fill="#7dd3fc" d="M0 30C6 30 8 12 18 8C26 5 32 9 34 14C29 11 24 13 24 19C24 25 30 28 40 30Z"/></svg></div>
+    <div><h1>¿Hay olas?</h1><p>Sitges · El Prat</p></div>
+    <span class="updated" id="updated">Cargando previsión…</span>
+  </div>
 </header>
+<nav aria-label="Secciones"><div>
+  <a href="#donde">¿Dónde voy?</a><a href="#sitges">Sitges</a><a href="#el-prat">El Prat</a><a href="#aemet">Mapa AEMET</a>
+</div></nav>
 <main>
   <div id="spots"></div>
 
-  <section class="aemet">
-    <h2>AEMET · Mar combinada, Costa de Cataluña</h2>
+  <section class="aemet" id="aemet">
+    <div class="eyebrow">Mapa</div>
+    <h2>AEMET · Mar combinada, costa de Cataluña</h2>
     <img id="aemet-img" alt="Mapa de AEMET de altura de mar combinada en la costa de Cataluña">
-    <p id="aemet-label"></p>
-    <input id="aemet-slider" type="range" min="0" max="38" step="1" aria-label="Hora del mapa de AEMET">
-  </section>
-
-  <section>
-    <h2>Puertos del Estado · Predicción de oleaje</h2>
-    <iframe class="puertos" loading="lazy" title="Predicción de oleaje de Puertos del Estado"
-      src="https://portus.puertos.es/#/predictionWidget?resourceId=oleaje-med&var=WAVE&zoom=9&lat=41.25&lon=1.95&vec=true&locale=es"></iframe>
+    <div class="aemet-ctl">
+      <input id="aemet-slider" type="range" min="0" max="38" step="1" aria-label="Hora del mapa de AEMET">
+      <p id="aemet-label"></p>
+    </div>
   </section>
 </main>
 <footer>
-  Datos: <a href="https://open-meteo.com/">Open-Meteo</a> (modelos GFS-Wave, ECMWF WAM, Météo-France),
-  AEMET, Wisuki, Puertos del Estado. Cámaras: Escola Catalana de Surf · Ajuntament del Prat.
+  Datos: <a href="https://open-meteo.com/">Open-Meteo</a> (modelos GFS-Wave, ECMWF WAM, Météo-France), AEMET y Wisuki.
+  Cámaras: Escola Catalana de Surf · Ajuntament del Prat.
 </footer>
 
 <script>
@@ -230,17 +288,18 @@ function renderWhere(allSlots) {
     else groups.push({ r, from: s, to: s, hs: [s.h] });
   }
   return `
-  <section>
+  <section id="donde">
+    <div class="eyebrow">Recomendación</div>
     <h2>¿Dónde voy?</h2>
-    <div class="now ${rec.v}">
-      <b>${rec.spots.length ? rec.spots.join(' · ') : 'No hay nada'}</b>
-      <div>Ahora${rec.spots.length ? `: mar del ${rec.text} · ${LABEL[rec.v]}` : ''}</div>
+    <div class="hero ${rec.v}">
+      <div class="hero-main">${rec.spots.length ? rec.spots.map(x => `<span class="chip">${x}</span>`).join('') : '<b>No hay nada</b>'}</div>
+      <div class="hero-meta">Ahora${rec.spots.length ? ` · mar del ${rec.text} · ${LABEL[rec.v]}` : ''}</div>
     </div>
-    <div class="scroll"><table>
+    <div class="scroll"><table class="list">
       ${groups.map(g => `<tr><td>${slotLabel(g.from)}${g.to !== g.from ? ' → ' + slotLabel(g.to) : ''}</td>
-        <td class="${g.r.v}">${g.r.spots.length ? LABEL[g.r.v] : 'NO'}</td>
+        <td><span class="pill ${g.r.v}">${g.r.spots.length ? LABEL[g.r.v] : 'NO'}</span></td>
         <td>${g.r.spots.length ? g.r.text : ''}</td><td>${[...new Set([Math.min(...g.hs), Math.max(...g.hs)].map(x => fmt(x)))].join('–')} m</td>
-        <td style="text-align:left"><b>${g.r.spots.join(', ') || 'No hay nada'}</b></td></tr>`).join('')}
+        <td>${g.r.spots.map(x => `<span class="chip sm">${x}</span>`).join(' ') || '<span style="color:var(--mut)">No hay nada</span>'}</td></tr>`).join('')}
     </table></div>
   </section>`;
 }
@@ -255,23 +314,31 @@ function renderSpot(spot, slots) {
   }).join('')}</tr>`;
 
   const wt = windType(now.windDir, spot.facing);
+  const tile = (label, value, sub = '') => `<div class="tile"><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
   return `
-  <section>
-    <h2>${spot.name}</h2>
-    <div class="now ${now.verdict.v}">
-      <b>${LABEL[now.verdict.v]}</b>
-      <div>Ahora: ${fmt(now.h)} m · ${fmt(now.t)} s · ${fmt(now.energy, 0)} kJ · ${cardinal(now.wdir ?? 0)} — viento ${fmt(now.wind, 0)} km/h ${wt}<br>
-      <small>${now.verdict.why}${now.spread > CFG.maxSpread ? ' · ⚠ los modelos no coinciden' : ''}</small></div>
+  <section id="${spot.name.toLowerCase().replace(/\s+/g, '-')}">
+    <div class="head">
+      <div><div class="eyebrow">Spot · ahora</div><h2>${spot.name}</h2></div>
+      <span class="pill big ${now.verdict.v}">${LABEL[now.verdict.v]}</span>
+    </div>
+    <p class="why">${now.verdict.why}${now.spread > CFG.maxSpread ? ' · <span class="warn">⚠ los modelos no coinciden</span>' : ''}</p>
+    <div class="tiles">
+      ${tile('Ola', `${fmt(now.h)} m`, now.spread > CFG.maxSpread ? '<span class="warn">⚠ poco fiable</span>' : 'media de 3 modelos')}
+      ${tile('Periodo', `${fmt(now.t)} s`)}
+      ${tile('Energía', `${fmt(now.energy, 0)} kJ`, waveIcon(now.energy))}
+      ${tile('Mar de', arrow(now.wdir), 'dirección del oleaje')}
+      ${tile('Viento', `${fmt(now.wind, 0)} km/h`, `rachas ${fmt(now.gust, 0)}`)}
+      ${tile('Viento de', arrow(now.windDir), wt)}
     </div>
     <div class="frame"><iframe src="${spot.cam}" title="Webcam ${spot.name}" allow="autoplay; fullscreen"></iframe></div>
 
-    <h3>Previsión <small>(⚠ = los modelos no coinciden, menos fiable)</small></h3>
+    <h3>Previsión · 4 días <small>(⚠ = los modelos no coinciden, menos fiable)</small></h3>
     <div class="scroll"><table>
       <tr><th></th>${cols.map((s, i) => {
         const d = new Date(s.time);
-        return `<th class="${isDayStart(s, i) ? 'day' : ''}">${isDayStart(s, i) ? DAYS[d.getDay()] + ' ' + d.getDate() + '<br>' : '<br>'}${s.time.slice(11, 13)}h</th>`;
+        return `<th class="${isDayStart(s, i) ? 'day' : ''}">${isDayStart(s, i) ? `<b>${DAYS[d.getDay()]} ${d.getDate()}</b>` : ''}<br>${s.time.slice(11, 13)}h</th>`;
       }).join('')}</tr>
-      ${row('Veredicto', s => [LABEL[s.verdict.v], s.verdict.v])}
+      ${row('Veredicto', s => `<span class="pill ${s.verdict.v}">${LABEL[s.verdict.v]}</span>`)}
       ${row('Ola (m)', s => `<b>${fmt(s.h)}</b>${s.spread > CFG.maxSpread ? ' <span class="warn" title="Los modelos no coinciden">⚠</span>' : ''}`)}
       ${row('Periodo (s)', s => fmt(s.t))}
       ${row('', s => [waveIcon(s.energy), 'wave'])}
@@ -294,7 +361,7 @@ async function main() {
   const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
   box.innerHTML = (results[0].status === 'fulfilled' ? renderWhere(ok) : '') + results.map((r, i) => r.status === 'fulfilled'
     ? renderSpot(SPOTS[i], r.value)
-    : `<section><h2>${SPOTS[i].name}</h2><p class="warn">No se pudo cargar la previsión: ${r.reason.message}</p></section>`).join('');
+    : `<section id="${SPOTS[i].name.toLowerCase().replace(/\s+/g, '-')}"><h2>${SPOTS[i].name}</h2><p class="warn">No se pudo cargar la previsión: ${r.reason.message}</p></section>`).join('');
   document.getElementById('updated').textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
 }
 
